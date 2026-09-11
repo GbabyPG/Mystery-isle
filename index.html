@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mystery of the Forgotten Isle</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Georgia', serif; }
+        body { background: #0d0a08; color: #f0e6d2; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 10px; }
+
+        #level-select { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 10px; }
+        .lvl-btn { padding: 6px 12px; background: #36281c; color: #d4a359; border: 1px solid #4a3828; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+        .lvl-btn.active { background: #6b2d18; color: #fff; }
+
+        #game-container { display: flex; flex-direction: column; background: #1a1410; border: 2px solid #4a3828; border-radius: 8px; overflow: hidden; max-width: 100%; }
+        #canvas-wrapper { position: relative; width: 100%; max-width: 960px; aspect-ratio: 16/9; }
+        canvas { width: 100%; height: 100%; display: block; cursor: crosshair; }
+
+        #sidebar { width: 100%; padding: 12px; background: #241b14; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .header h2 { color: #d4a359; font-size: 1.1rem; }
+        .header h3 { color: #a68a68; font-size: 0.85rem; font-style: italic; }
+
+        .stats { display: flex; gap: 15px; font-weight: bold; color: #d4a359; font-size: 0.9rem; }
+
+        #item-list-container { width: 100%; }
+        #item-list { display: flex; flex-wrap: wrap; gap: 8px 15px; list-style: none; margin-top: 5px; }
+        #item-list li { color: #c4b59d; font-size: 0.85rem; }
+        #item-list li.found { color: #556b2f; text-decoration: line-through; opacity: 0.6; }
+
+        button.action-btn { padding: 8px 12px; background: #6b2d18; color: #f0e6d2; border: 1px solid #9c4528; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.85rem; }
+
+        #overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 15px; text-align: center; padding: 20px; }
+        #overlay.hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="level-select"></div>
+
+    <div id="game-container">
+        <div id="canvas-wrapper">
+            <canvas id="gameCanvas" width="960" height="540"></canvas>
+            <div id="overlay" class="hidden">
+                <h1 id="overlay-title">Level Cleared!</h1>
+                <p id="overlay-desc">Great job!</p>
+                <button class="action-btn" onclick="nextLevel()">Next Level</button>
+            </div>
+        </div>
+
+        <div id="sidebar">
+            <div class="header">
+                <h2 id="lvl-title">Level 1</h2>
+                <h3 id="chap-title">Chapter 1</h3>
+            </div>
+
+            <div class="stats">
+                <div>Time: <span id="timer">03:00</span></div>
+                <div>Score: <span id="score">0</span></div>
+            </div>
+
+            <button class="action-btn" onclick="useHint()">HINT (<span id="hint-count">2</span>)</button>
+
+            <div id="item-list-container">
+                <h4 style="font-size: 0.9rem;">Find Items (<span id="found-count">0</span>/<span id="total-count">0</span>):</h4>
+                <ul id="item-list"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const LEVELS = [
+            {
+                id: 1, title: "The Manor Foyer", chapter: "Ch 1: The Manor Entrance", image: "Ch1.png", time: 180,
+                items: [
+                    { id: 1, name: "Gold Mirror", x: 60, y: 150, radius: 35, found: false },
+                    { id: 2, name: "Chandelier", x: 215, y: 70, radius: 45, found: false },
+                    { id: 3, name: "Staircase Ornament", x: 360, y: 220, radius: 30, found: false },
+                    { id: 4, name: "Umbrella Stand", x: 75, y: 370, radius: 35, found: false },
+                    { id: 5, name: "Floor Rug", x: 230, y: 430, radius: 50, found: false }
+                ]
+            },
+            {
+                id: 2, title: "The Grand Library", chapter: "Ch 2: The Grand Library", image: "Ch2.png", time: 180,
+                items: [
+                    { id: 1, name: "Globe", x: 890, y: 310, radius: 35, found: false },
+                    { id: 2, name: "Desk Lamp", x: 860, y: 270, radius: 30, found: false },
+                    { id: 3, name: "Open Book", x: 780, y: 330, radius: 35, found: false },
+                    { id: 4, name: "Wooden Ladder", x: 670, y: 250, radius: 40, found: false },
+                    { id: 5, name: "Clay Vase", x: 600, y: 330, radius: 30, found: false }
+                ]
+            },
+            {
+                id: 3, title: "The Alchemist's Study", chapter: "Ch 3: The Alchemist's Lab", image: "Ch3.png", time: 180,
+                items: [
+                    { id: 1, name: "Brass Telescope", x: 440, y: 280, radius: 35, found: false },
+                    { id: 2, name: "Gilded Compass", x: 620, y: 110, radius: 30, found: false },
+                    { id: 3, name: "Moon Pendant", x: 530, y: 195, radius: 25, found: false },
+                    { id: 4, name: "Owl Statue", x: 750, y: 230, radius: 30, found: false },
+                    { id: 5, name: "Sleeping Cat", x: 580, y: 470, radius: 40, found: false }
+                ]
+            },
+            {
+                id: 4, title: "Subterranean Vault", chapter: "Ch 4: The Vault", image: "Ch4.png", time: 180,
+                items: [
+                    { id: 1, name: "Iron Torch", x: 360, y: 290, radius: 30, found: false },
+                    { id: 2, name: "Iron Sword", x: 45, y: 440, radius: 40, found: false },
+                    { id: 3, name: "Wooden Chest", x: 340, y: 460, radius: 45, found: false },
+                    { id: 4, name: "Chained Door", x: 430, y: 290, radius: 45, found: false },
+                    { id: 5, name: "Scroll Bundle", x: 200, y: 370, radius: 35, found: false }
+                ]
+            },
+            {
+                id: 5, title: "Observational Tower", chapter: "Ch 5: Celestial Chamber", image: "Ch5.png", time: 180,
+                items: [
+                    { id: 1, name: "Giant Telescope", x: 710, y: 360, radius: 60, found: false },
+                    { id: 2, name: "Star Map Floor", x: 700, y: 480, radius: 60, found: false },
+                    { id: 3, name: "Cosmic Portal", x: 880, y: 120, radius: 60, found: false },
+                    { id: 4, name: "Treasure Chest", x: 860, y: 430, radius: 40, found: false },
+                    { id: 5, name: "Wall Lantern", x: 580, y: 450, radius: 30, found: false }
+                ]
+            }
+        ];
+
+        let currentLvlIndex = 0;
+        let score = 0;
+        let hintsRemaining = 2;
+        let timeLeft = 180;
+        let timerInterval;
+        let bgImg = new Image();
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function initLevelButtons() {
+            const btnContainer = document.getElementById('level-select');
+            btnContainer.innerHTML = '';
+            LEVELS.forEach((lvl, idx) => {
+                const btn = document.createElement('button');
+                btn.className = `lvl-btn ${idx === currentLvlIndex ? 'active' : ''}`;
+                btn.innerText = `Lvl ${lvl.id}`;
+                btn.onclick = () => loadLevel(idx);
+                btnContainer.appendChild(btn);
+            });
+        }
+
+        function loadLevel(idx) {
+            currentLvlIndex = idx;
+            const lvl = LEVELS[currentLvlIndex];
+            timeLeft = lvl.time;
+            hintsRemaining = 2;
+            lvl.items.forEach(i => i.found = false);
+
+            document.getElementById('lvl-title').innerText = lvl.title;
+            document.getElementById('chap-title').innerText = lvl.chapter;
+            document.getElementById('hint-count').innerText = hintsRemaining;
+            document.getElementById('total-count').innerText = lvl.items.length;
+            document.getElementById('overlay').classList.add('hidden');
+
+            bgImg = new Image();
+            bgImg.src = lvl.image;
+            bgImg.onload = () => {
+                drawScene();
+            };
+
+            initLevelButtons();
+            updateUI();
+            clearInterval(timerInterval);
+            startTimer();
+        }
+
+        function drawScene() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (bgImg.complete && bgImg.naturalWidth !== 0) {
+                ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.fillStyle = "#2b1e16";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            const lvl = LEVELS[currentLvlIndex];
+            lvl.items.forEach(item => {
+                if (item.found) {
+                    ctx.strokeStyle = "#00ffcc";
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(item.x, item.y, item.radius, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            });
+        }
+
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const clickX = (e.clientX - rect.left) * scaleX;
+            const clickY = (e.clientY - rect.top) * scaleY;
+
+            let hit = false;
+            const lvl = LEVELS[currentLvlIndex];
+            lvl.items.forEach(item => {
+                if (!item.found) {
+                    const dist = Math.hypot(clickX - item.x, clickY - item.y);
+                    if (dist < item.radius) {
+                        item.found = true;
+                        score += 250;
+                        hit = true;
+                    }
+                }
+            });
+
+            if (!hit) score = Math.max(0, score - 20);
+            updateUI();
+            drawScene();
+            checkWinCondition();
+        });
+
+        function useHint() {
+            if (hintsRemaining <= 0) return;
+            const lvl = LEVELS[currentLvlIndex];
+            const unfound = lvl.items.find(i => !i.found);
+            if (unfound) {
+                hintsRemaining--;
+                drawScene();
+                ctx.strokeStyle = "#ff0000";
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.arc(unfound.x, unfound.y, unfound.radius + 10, 0, Math.PI * 2);
+                ctx.stroke();
+                document.getElementById('hint-count').innerText = hintsRemaining;
+            }
+        }
+
+        function updateUI() {
+            document.getElementById('score').innerText = score;
+            const list = document.getElementById('item-list');
+            list.innerHTML = '';
+            
+            let foundCount = 0;
+            const lvl = LEVELS[currentLvlIndex];
+            lvl.items.forEach(item => {
+                const li = document.createElement('li');
+                li.innerText = item.name;
+                if (item.found) {
+                    li.classList.add('found');
+                    foundCount++;
+                }
+                list.appendChild(li);
+            });
+            
+            document.getElementById('found-count').innerText = foundCount;
+        }
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                const mins = String(Math.floor(timeLeft / 60)).padStart(2, '0');
+                const secs = String(timeLeft % 60).padStart(2, '0');
+                document.getElementById('timer').innerText = `${mins}:${secs}`;
+
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    showEndScreen("Time's Up!", "Try again!");
+                }
+            }, 1000);
+        }
+
+        function checkWinCondition() {
+            const lvl = LEVELS[currentLvlIndex];
+            if (lvl.items.every(i => i.found)) {
+                clearInterval(timerInterval);
+                showEndScreen("Chapter Complete!", `Final Score: ${score}`);
+            }
+        }
+
+        function showEndScreen(title, desc) {
+            document.getElementById('overlay-title').innerText = title;
+            document.getElementById('overlay-desc').innerText = desc;
+            document.getElementById('overlay').classList.remove('hidden');
+        }
+
+        function nextLevel() {
+            if (currentLvlIndex < LEVELS.length - 1) {
+                loadLevel(currentLvlIndex + 1);
+            } else {
+                loadLevel(0);
+            }
+        }
+
+        loadLevel(0);
+    </script>
+</body>
+</html>
